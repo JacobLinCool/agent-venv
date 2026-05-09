@@ -1,0 +1,16 @@
+{
+  "case_id": "022-list",
+  "doc": "After creating two persistent envs, list() returns both names.",
+  "request": {
+    "op": "persistent_list",
+    "names": ["env-a", "env-b"],
+    "spec": {
+      "adapter_id": "generic",
+      "env_overrides": {"FOO": "$EPHEMERAL_HOME"}
+    }
+  },
+  "expect": {
+    "ok": true,
+    "names_listed_sorted": ["env-a", "env-b"]
+  }
+}

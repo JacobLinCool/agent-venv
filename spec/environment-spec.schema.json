@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JacobLinCool/agent-venv/spec/environment-spec.schema.json",
+  "title": "EnvironmentSpec",
+  "description": "Declarative description of how to materialize an environment's profile directory. Implementations accept this as the input to create*().",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "adapter_id": {
+      "type": "string",
+      "description": "Stable identifier of the adapter this env is for. 'generic' for direct usage without an adapter."
+    },
+    "env_overrides": {
+      "type": "object",
+      "description": "Environment variables to surface on the resulting Environment.env_overrides. Values may contain the literal placeholder '$EPHEMERAL_HOME', which the implementation MUST replace with the absolute path of the profile directory at creation time. By convention, only agent-specific config vars (e.g. CLAUDE_CONFIG_DIR, CODEX_HOME) are set; HOME is intentionally NOT overridden by default.",
+      "additionalProperties": {"type": "string"}
+    },
+    "seed_files": {
+      "type": "object",
+      "description": "Map of relative path → file contents. Paths must be relative; '..' components are forbidden. Files are written under the profile directory at creation time.",
+      "additionalProperties": {"type": "string"}
+    },
+    "file_modes": {
+      "type": "object",
+      "description": "Map of relative path → POSIX mode bits (e.g. 384 for 0o600). Applied after seed_files. Ignored on non-Unix platforms.",
+      "additionalProperties": {"type": "integer"}
+    },
+    "credentials": {
+      "type": "object",
+      "description": "Credential payload to write into the profile dir. Same shape as seed_files but materially distinct in semantics: refresh_credentials() re-runs only this part. Implementations also default to mode 0600 for credential files unless overridden by file_modes.",
+      "additionalProperties": {"type": "string"}
+    },
+    "prefix": {
+      "type": "string",
+      "description": "tmpdir prefix for ephemeral envs. Ignored for persistent envs."
+    }
+  }
+}

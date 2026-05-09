@@ -1,0 +1,18 @@
+{
+  "case_id": "023-destroy-by-name",
+  "doc": "destroy_by_name removes the env from disk and registry; subsequent list shows it gone.",
+  "request": {
+    "op": "persistent_destroy_by_name",
+    "name": "to-be-destroyed",
+    "spec": {
+      "adapter_id": "generic",
+      "env_overrides": {"FOO": "$EPHEMERAL_HOME"}
+    }
+  },
+  "expect": {
+    "ok": true,
+    "path_exists_after": false,
+    "name_in_index_after": false,
+    "events_contain": ["env.destroyed"]
+  }
+}

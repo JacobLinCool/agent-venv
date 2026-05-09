@@ -1,0 +1,18 @@
+{
+  "case_id": "002-ephemeral-no-home",
+  "doc": "By default the implementation does NOT add HOME to env_overrides. Only the keys the spec asked for are present.",
+  "request": {
+    "op": "ephemeral_lifecycle",
+    "spec": {
+      "adapter_id": "claude-code",
+      "env_overrides": {"CLAUDE_CONFIG_DIR": "$EPHEMERAL_HOME"},
+      "seed_files": {".claude.json": "{\"hasCompletedOnboarding\":true}"},
+      "credentials": {}
+    }
+  },
+  "expect": {
+    "ok": true,
+    "env_overrides_keys": ["CLAUDE_CONFIG_DIR"],
+    "env_overrides_excludes": ["HOME"]
+  }
+}

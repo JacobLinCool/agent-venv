@@ -1,0 +1,17 @@
+{
+  "case_id": "024-attach-mismatch",
+  "doc": "Creating with adapter A then attaching with adapter B yields AdapterMismatch.",
+  "request": {
+    "op": "persistent_attach_mismatch",
+    "name": "claude-then-codex",
+    "first_spec": {
+      "adapter_id": "claude-code",
+      "env_overrides": {"CLAUDE_CONFIG_DIR": "$EPHEMERAL_HOME"}
+    },
+    "second_adapter_id": "codex"
+  },
+  "expect": {
+    "ok": true,
+    "error_kind": "AdapterMismatch"
+  }
+}

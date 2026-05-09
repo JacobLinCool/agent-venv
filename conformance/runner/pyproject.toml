@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-venv-conformance"
+version = "0.1.0"
+description = "Cross-language conformance harness for agent-venv"
+readme = "../README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+
+[project.scripts]
+agent-venv-conformance = "agent_venv_conformance.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent_venv_conformance"]

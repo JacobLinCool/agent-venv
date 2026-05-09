@@ -1,0 +1,36 @@
+name: rust
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/rust/**"
+      - "spec/**"
+      - ".github/workflows/rust.yml"
+  pull_request:
+    paths:
+      - "packages/rust/**"
+      - "spec/**"
+      - ".github/workflows/rust.yml"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: packages/rust
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/rust
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

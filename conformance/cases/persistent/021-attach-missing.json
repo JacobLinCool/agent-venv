@@ -1,0 +1,12 @@
+{
+  "case_id": "021-attach-missing",
+  "doc": "attach() on a name that doesn't exist raises EnvironmentNotFound.",
+  "request": {
+    "op": "persistent_attach_missing",
+    "name": "definitely-not-created"
+  },
+  "expect": {
+    "ok": true,
+    "error_kind": "EnvironmentNotFound"
+  }
+}

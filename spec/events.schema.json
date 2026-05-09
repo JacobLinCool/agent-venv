@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JacobLinCool/agent-venv/spec/events.schema.json",
+  "title": "AuditEvent",
+  "description": "An entry in an environment's event log. Events are emitted in monotonic time order. Implementations MAY emit additional vendor-prefixed events (e.g. 'x.python.something'); only the events in this enum are part of the cross-language contract.",
+  "type": "object",
+  "required": ["ts_ms", "kind"],
+  "additionalProperties": true,
+  "properties": {
+    "ts_ms": {"type": "integer", "minimum": 0},
+    "kind": {
+      "type": "string",
+      "enum": [
+        "env.created",
+        "env.attached",
+        "profile.materialized",
+        "credentials.copied",
+        "credentials.refreshed",
+        "env.destroyed",
+        "registry.read",
+        "registry.written",
+        "error"
+      ]
+    }
+  },
+  "$defs": {
+    "env.created": {
+      "type": "object",
+      "description": "The lifetime field is named 'lifetime' (not 'kind') so it doesn't collide with the event's own 'kind' field when events are serialized flat.",
+      "properties": {
+        "name": {"type": ["string", "null"]},
+        "lifetime": {"enum": ["ephemeral", "persistent"]},
+        "adapter_id": {"type": "string"},
+        "path": {"type": "string"}
+      }
+    },
+    "env.attached": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "adapter_id": {"type": "string"},
+        "path": {"type": "string"}
+      }
+    },
+    "profile.materialized": {
+      "type": "object",
+      "description": "Seed files (excluding credentials) have been written.",
+      "properties": {"file_count": {"type": "integer"}, "total_bytes": {"type": "integer"}}
+    },
+    "credentials.copied": {
+      "type": "object",
+      "description": "Credentials were materialized. file_count includes credential files only.",
+      "properties": {"file_count": {"type": "integer"}}
+    },
+    "credentials.refreshed": {
+      "type": "object",
+      "properties": {"file_count": {"type": "integer"}}
+    },
+    "env.destroyed": {
+      "type": "object",
+      "properties": {"path": {"type": "string"}, "ok": {"type": "boolean"}}
+    },
+    "registry.read": {"type": "object", "properties": {"path": {"type": "string"}}},
+    "registry.written": {"type": "object", "properties": {"path": {"type": "string"}}},
+    "error": {
+      "type": "object",
+      "description": "The payload uses 'error_kind' rather than 'kind' to avoid colliding with the event's own 'kind' field when events are serialized flat.",
+      "properties": {"error_kind": {"type": "string"}, "message": {"type": "string"}}
+    }
+  }
+}

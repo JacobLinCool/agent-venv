@@ -1,0 +1,19 @@
+{
+  "case_id": "020-create-attach-idempotent",
+  "doc": "Calling create_or_attach twice with the same name + registry_root yields the same on-disk path. Same seed files; second call must not re-materialize them.",
+  "request": {
+    "op": "persistent_create_attach_idempotent",
+    "name": "test-env-idempotent",
+    "spec": {
+      "adapter_id": "generic",
+      "env_overrides": {"FOO": "$EPHEMERAL_HOME"},
+      "seed_files": {"hello.txt": "world"}
+    }
+  },
+  "expect": {
+    "ok": true,
+    "paths_equal": true,
+    "second_path_files_present": ["hello.txt"],
+    "events_contain": ["env.created", "env.attached"]
+  }
+}

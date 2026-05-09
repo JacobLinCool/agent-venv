@@ -1,0 +1,100 @@
+name: release-ts
+
+on:
+  push:
+    tags:
+      - "ts-v*"
+
+concurrency:
+  group: release-ts-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Parse tag
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#ts-v}"
+          PRERELEASE=false
+          NPM_TAG=latest
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=true; NPM_TAG=next; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "npm_tag=$NPM_TAG" >> "$GITHUB_OUTPUT"
+          echo "Tag=$TAG Version=$VERSION Prerelease=$PRERELEASE NpmTag=$NPM_TAG"
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+          cache-dependency-path: packages/typescript/pnpm-lock.yaml
+
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Verify tag matches package.json version
+        working-directory: packages/typescript
+        run: |
+          MANIFEST=$(node -p "require('./package.json').version")
+          if [ "$MANIFEST" != "${{ steps.tag.outputs.version }}" ]; then
+            echo "::error::Tag version ${{ steps.tag.outputs.version }} != package.json version $MANIFEST"
+            exit 1
+          fi
+
+      - name: Install
+        working-directory: packages/typescript
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Typecheck
+        working-directory: packages/typescript
+        run: pnpm typecheck
+
+      - name: Build
+        working-directory: packages/typescript
+        run: pnpm build
+
+      - name: Unit tests
+        working-directory: packages/typescript
+        run: pnpm test
+
+      - uses: astral-sh/setup-uv@v8
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install conformance harness
+        run: uv pip install --system -e conformance/runner
+
+      - name: Conformance (ts adapter only)
+        run: |
+          python -m agent_venv_conformance \
+            --adapter "ts:node packages/typescript/dist/conformance/bin.cjs" \
+            --cases conformance/cases \
+            --no-differential
+
+      - name: Copy LICENSE into package
+        run: cp LICENSE packages/typescript/LICENSE
+
+      - name: Publish to npm (trusted publisher + provenance)
+        working-directory: packages/typescript
+        run: npm publish --provenance --access public --tag ${{ steps.tag.outputs.npm_tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: agent-venv (TypeScript) ${{ steps.tag.outputs.version }}
+          prerelease: ${{ steps.tag.outputs.prerelease }}
+          generate_release_notes: true

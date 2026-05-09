@@ -1,0 +1,23 @@
+{
+  "case_id": "001-ephemeral-lifecycle",
+  "doc": "Create an ephemeral env with a few seed files and an env override; verify path exists, files exist, env_overrides is resolved; destroy and verify path is gone.",
+  "request": {
+    "op": "ephemeral_lifecycle",
+    "spec": {
+      "adapter_id": "generic",
+      "env_overrides": {"FOO": "$EPHEMERAL_HOME"},
+      "seed_files": {"a.txt": "1", "nested/b.txt": "2"},
+      "file_modes": {},
+      "credentials": {}
+    }
+  },
+  "expect": {
+    "ok": true,
+    "inspection_path_exists": true,
+    "inspection_files_present": ["a.txt", "nested/b.txt"],
+    "env_overrides_keys": ["FOO"],
+    "env_overrides_foo_is_path": true,
+    "after_destroy_path_exists": false,
+    "events_contain": ["env.created", "profile.materialized", "env.destroyed"]
+  }
+}

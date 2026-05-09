@@ -1,0 +1,96 @@
+name: release-rust
+
+on:
+  push:
+    tags:
+      - "rust-v*"
+
+concurrency:
+  group: release-rust-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Parse tag
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#rust-v}"
+          PRERELEASE=false
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=true; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Tag=$TAG Version=$VERSION Prerelease=$PRERELEASE"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/rust
+
+      - name: Verify tag matches Cargo.toml version
+        working-directory: packages/rust
+        run: |
+          MANIFEST=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version')
+          if [ "$MANIFEST" != "${{ steps.tag.outputs.version }}" ]; then
+            echo "::error::Tag version ${{ steps.tag.outputs.version }} != Cargo.toml version $MANIFEST"
+            exit 1
+          fi
+
+      - name: Lint
+        working-directory: packages/rust
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+
+      - name: Unit tests
+        working-directory: packages/rust
+        run: cargo test
+
+      - name: Build conformance binary (release)
+        working-directory: packages/rust
+        run: cargo build --release --bin agent-venv-conformance
+
+      - uses: astral-sh/setup-uv@v8
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install conformance harness
+        run: uv pip install --system -e conformance/runner
+
+      - name: Conformance (rust adapter only)
+        run: |
+          python -m agent_venv_conformance \
+            --adapter "rust:packages/rust/target/release/agent-venv-conformance" \
+            --cases conformance/cases \
+            --no-differential
+
+      - name: Copy LICENSE into package
+        run: cp LICENSE packages/rust/LICENSE
+
+      - name: Authenticate with crates.io (trusted publisher)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish to crates.io
+        working-directory: packages/rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: agent-venv (Rust) ${{ steps.tag.outputs.version }}
+          prerelease: ${{ steps.tag.outputs.prerelease }}
+          generate_release_notes: true

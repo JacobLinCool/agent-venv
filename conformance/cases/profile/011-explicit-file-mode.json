@@ -1,0 +1,18 @@
+{
+  "case_id": "011-explicit-file-mode",
+  "doc": "An explicit file_modes entry overrides the default. Tested with mode 0640 on a regular seed file.",
+  "request": {
+    "op": "ephemeral_lifecycle",
+    "spec": {
+      "adapter_id": "generic",
+      "env_overrides": {"FOO": "$EPHEMERAL_HOME"},
+      "seed_files": {"data.txt": "x"},
+      "file_modes": {"data.txt": 416}
+    }
+  },
+  "expect": {
+    "ok": true,
+    "inspection_files_present": ["data.txt"],
+    "file_mode_data_txt_unix": 416
+  }
+}

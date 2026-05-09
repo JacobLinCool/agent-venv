@@ -1,0 +1,19 @@
+{
+  "case_id": "025-cross-language-attach",
+  "doc": "An env created by one language can be attached by another at the same registry_root and name. The harness orchestrates the two stages and verifies the path is identical.",
+  "request": {
+    "op": "cross_language_attach",
+    "name": "shared-env",
+    "spec": {
+      "adapter_id": "generic",
+      "env_overrides": {"FOO": "$EPHEMERAL_HOME"},
+      "seed_files": {"shared.txt": "yes"}
+    }
+  },
+  "expect": {
+    "ok": true,
+    "cross_language_paths_equal": true,
+    "second_path_files_present": ["shared.txt"],
+    "differential_ignore": ["events"]
+  }
+}

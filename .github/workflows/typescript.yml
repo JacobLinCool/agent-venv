@@ -1,0 +1,40 @@
+name: typescript
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/typescript/**"
+      - "spec/**"
+      - ".github/workflows/typescript.yml"
+  pull_request:
+    paths:
+      - "packages/typescript/**"
+      - "spec/**"
+      - ".github/workflows/typescript.yml"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        node: ["22", "24"]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: packages/typescript
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+          cache-dependency-path: packages/typescript/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test

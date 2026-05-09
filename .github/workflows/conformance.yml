@@ -1,0 +1,60 @@
+name: conformance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  conformance:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # Python
+      - uses: astral-sh/setup-uv@v8
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: uv pip install --system -e packages/python -e conformance/runner
+
+      # TypeScript
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: pnpm install --frozen-lockfile=false
+        working-directory: packages/typescript
+      - run: pnpm build
+        working-directory: packages/typescript
+
+      # Rust
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/rust
+      - run: cargo build --release --bin agent-venv-conformance
+        working-directory: packages/rust
+
+      # Run conformance harness
+      - name: Run conformance harness
+        run: |
+          python -m agent_venv_conformance \
+            --adapter python:python -m agent_venv.conformance \
+            --adapter ts:node packages/typescript/dist/conformance/bin.cjs \
+            --adapter rust:packages/rust/target/release/agent-venv-conformance \
+            --cases conformance/cases \
+            --junit conformance-junit.xml
+
+      - name: Upload JUnit
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: conformance-junit-${{ matrix.os }}
+          path: conformance-junit.xml
