@@ -168,13 +168,3 @@ func kindOf(err error) string {
 	return "InternalInvariantViolation"
 }
 
-// registry is forward-declared so environment.go compiles before Phase 6
-// adds the real implementation. The placeholder method panics if the
-// persistent branch is somehow exercised before then.
-type registry struct {
-	indexPath string
-}
-
-func (r *registry) remove(string) (bool, string, error) {
-	panic("registry.remove placeholder — implemented in registry.go")
-}
