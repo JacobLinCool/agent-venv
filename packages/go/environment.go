@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
+	"time"
 )
 
 // Environment is a handle to a materialized profile directory.
@@ -152,6 +154,169 @@ func (e *Environment) RefreshCredentials(ctx context.Context) error {
 		return err
 	}
 	e.log.emit(EventCredentialsRefresh, map[string]any{"file_count": count})
+	return nil
+}
+
+// CreateOrAttach creates a new persistent environment or attaches to an
+// existing one with the same name. Idempotent: same name + same registry
+// root + same adapter_id always returns a handle backed by the same path.
+func CreateOrAttach(ctx context.Context, name string, spec EnvironmentSpec, opts ...Option) (*Environment, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, newErr(ErrProfileSetupFailed, "context cancelled", err)
+	}
+	cfg := optionsToConfig(opts)
+	log := newEventLog(cfg.eventSink)
+	root := cfg.registryRoot
+	if root == "" {
+		root = DefaultRegistryRoot()
+	}
+	reg := newRegistry(root)
+
+	envDir, meta, created, err := reg.reserveOrGet(name, spec.adapterIDOrDefault())
+	if err != nil {
+		return nil, err
+	}
+	profileDir := filepath.Join(envDir, "profile")
+
+	var eo map[string]string
+	if created {
+		log.emit(EventEnvCreated, map[string]any{
+			"name":       name,
+			"lifetime":   "persistent",
+			"adapter_id": spec.adapterIDOrDefault(),
+			"path":       profileDir,
+		})
+		eo, err = materialize(profileDir, spec, log, false)
+		if err != nil {
+			return nil, err
+		}
+		meta.EnvOverrides = eo
+		if len(spec.Credentials) > 0 {
+			meta.CredentialsLoaded = true
+			meta.CredentialsLoadedAt = time.Now().UTC().Format(time.RFC3339)
+		}
+		if err := reg.writeMetadata(envDir, meta); err != nil {
+			return nil, err
+		}
+		log.emit(EventRegistryWritten, map[string]any{"path": filepath.Join(envDir, "metadata.json")})
+	} else {
+		log.emit(EventEnvAttached, map[string]any{
+			"name":       name,
+			"adapter_id": meta.AdapterID,
+			"path":       profileDir,
+		})
+		log.emit(EventRegistryRead, map[string]any{"path": filepath.Join(envDir, "metadata.json")})
+		if len(meta.EnvOverrides) > 0 {
+			eo = make(map[string]string, len(meta.EnvOverrides))
+			for k, v := range meta.EnvOverrides {
+				eo[k] = v
+			}
+		} else {
+			eo, err = materialize(profileDir, spec, log, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return &Environment{
+		path:         profileDir,
+		envOverrides: eo,
+		spec:         spec,
+		log:          log,
+		name:         name,
+		persistent:   true,
+		registry:     reg,
+	}, nil
+}
+
+// Attach connects to an existing persistent environment by name. Returns
+// ErrEnvironmentNotFound if the name is not in the registry.
+func Attach(ctx context.Context, name string, opts ...Option) (*Environment, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, newErr(ErrProfileSetupFailed, "context cancelled", err)
+	}
+	cfg := optionsToConfig(opts)
+	log := newEventLog(cfg.eventSink)
+	root := cfg.registryRoot
+	if root == "" {
+		root = DefaultRegistryRoot()
+	}
+	reg := newRegistry(root)
+	envDir, meta, found, err := reg.lookup(name)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, newErr(ErrEnvironmentNotFound, "no env named "+name, nil)
+	}
+	profileDir := filepath.Join(envDir, "profile")
+	spec := EnvironmentSpec{
+		AdapterID:    meta.AdapterID,
+		EnvOverrides: meta.EnvOverrides,
+	}
+	log.emit(EventEnvAttached, map[string]any{
+		"name":       name,
+		"adapter_id": meta.AdapterID,
+		"path":       profileDir,
+	})
+	log.emit(EventRegistryRead, map[string]any{"path": filepath.Join(envDir, "metadata.json")})
+	eo := make(map[string]string, len(meta.EnvOverrides))
+	for k, v := range meta.EnvOverrides {
+		eo[k] = v
+	}
+	return &Environment{
+		path:         profileDir,
+		envOverrides: eo,
+		spec:         spec,
+		log:          log,
+		name:         name,
+		persistent:   true,
+		registry:     reg,
+	}, nil
+}
+
+// CreateOrAttachFor builds a spec from the adapter and calls CreateOrAttach.
+func CreateOrAttachFor(ctx context.Context, name string, a AgentAdapter, opts ...Option) (*Environment, error) {
+	spec, err := a.BuildSpec(true)
+	if err != nil {
+		return nil, err
+	}
+	return CreateOrAttach(ctx, name, spec, opts...)
+}
+
+// List returns persistent environment names sorted.
+func List(ctx context.Context, opts ...Option) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, newErr(ErrRegistryUnavailable, "context cancelled", err)
+	}
+	cfg := optionsToConfig(opts)
+	root := cfg.registryRoot
+	if root == "" {
+		root = DefaultRegistryRoot()
+	}
+	return newRegistry(root).listNames()
+}
+
+// DestroyByName removes the named environment from disk and registry.
+// Returns ErrEnvironmentNotFound if no such name; ErrCleanupFailed if the
+// dir removal failed (the registry entry is still removed for consistency).
+func DestroyByName(ctx context.Context, name string, opts ...Option) error {
+	if err := ctx.Err(); err != nil {
+		return newErr(ErrCleanupFailed, "context cancelled", err)
+	}
+	cfg := optionsToConfig(opts)
+	root := cfg.registryRoot
+	if root == "" {
+		root = DefaultRegistryRoot()
+	}
+	ok, _, err := newRegistry(root).remove(name)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return newErr(ErrCleanupFailed, "removing env dir", nil)
+	}
 	return nil
 }
 

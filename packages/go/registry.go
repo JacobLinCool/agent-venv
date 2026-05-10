@@ -58,6 +58,14 @@ func newRegistry(root string) *registry {
 	if err != nil {
 		abs = root
 	}
+	// Resolve symlinks so cross-language attach sees the same canonical
+	// path regardless of which language wrote first. On macOS the system
+	// tempdir is reached through /var which is a symlink to /private/var;
+	// the other implementations (Python Path.resolve, Rust canonicalize)
+	// return the resolved form, so we follow suit.
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = resolved
+	}
 	return &registry{
 		root:      abs,
 		indexPath: filepath.Join(abs, "index.json"),

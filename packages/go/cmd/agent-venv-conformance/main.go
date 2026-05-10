@@ -108,9 +108,124 @@ func dispatch(req request) response {
 	switch req.Op {
 	case "ephemeral_lifecycle":
 		return opEphemeralLifecycle(ctx, req)
+	case "persistent_create_attach_idempotent":
+		return opCreateAttachIdempotent(ctx, req)
+	case "persistent_attach_only":
+		return opAttachOnly(ctx, req)
+	case "persistent_attach_missing":
+		return opAttachMissing(ctx, req)
+	case "persistent_destroy_by_name":
+		return opDestroyByName(ctx, req)
+	case "persistent_list":
+		return opPersistentList(ctx, req)
+	case "persistent_attach_mismatch":
+		return opAttachMismatch(ctx, req)
 	default:
 		return errorResp(req.CaseID, "InternalInvariantViolation", "unknown op: "+req.Op, false)
 	}
+}
+
+func opCreateAttachIdempotent(ctx context.Context, req request) response {
+	spec := req.Spec.toEnvironmentSpec()
+	env1, err := agentvenv.CreateOrAttach(ctx, req.Name, spec, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	if err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	env2, err := agentvenv.CreateOrAttach(ctx, req.Name, spec, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	if err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	insp := inspectEnv(env2)
+	events := append(eventsOf(env1), eventsOf(env2)...)
+	return response{
+		CaseID:                 req.CaseID,
+		OK:                     true,
+		Events:                 events,
+		Paths:                  []string{env1.Path(), env2.Path()},
+		SecondPathFilesPresent: insp.FilesPresent,
+	}
+}
+
+func opAttachOnly(ctx context.Context, req request) response {
+	env, err := agentvenv.Attach(ctx, req.Name, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	if err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	insp := inspectEnv(env)
+	return response{
+		CaseID:       req.CaseID,
+		OK:           true,
+		Events:       eventsOf(env),
+		Path:         env.Path(),
+		FilesPresent: insp.FilesPresent,
+	}
+}
+
+func opAttachMissing(ctx context.Context, req request) response {
+	_, err := agentvenv.Attach(ctx, req.Name, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	if err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	return errorResp(req.CaseID, "InternalInvariantViolation", "attach unexpectedly succeeded", true)
+}
+
+func opDestroyByName(ctx context.Context, req request) response {
+	spec := req.Spec.toEnvironmentSpec()
+	env, err := agentvenv.CreateOrAttach(ctx, req.Name, spec, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	if err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	createdPath := env.Path()
+	if err := env.Destroy(ctx); err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	names, _ := agentvenv.List(ctx, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	inIdx := false
+	for _, n := range names {
+		if n == req.Name {
+			inIdx = true
+		}
+	}
+	return response{
+		CaseID:           req.CaseID,
+		OK:               true,
+		Events:           eventsOf(env),
+		CreatedPath:      createdPath,
+		PathExistsAfter:  pathExists(createdPath),
+		NameInIndexAfter: inIdx,
+	}
+}
+
+func opPersistentList(ctx context.Context, req request) response {
+	spec := req.Spec.toEnvironmentSpec()
+	for _, n := range req.Names {
+		if _, err := agentvenv.CreateOrAttach(ctx, n, spec, agentvenv.WithRegistryRoot(req.RegistryRoot)); err != nil {
+			return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+		}
+	}
+	names, err := agentvenv.List(ctx, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	if err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	return response{
+		CaseID:      req.CaseID,
+		OK:          true,
+		Events:      []map[string]any{},
+		NamesListed: names,
+	}
+}
+
+func opAttachMismatch(ctx context.Context, req request) response {
+	first := req.FirstSpec.toEnvironmentSpec()
+	if _, err := agentvenv.CreateOrAttach(ctx, req.Name, first, agentvenv.WithRegistryRoot(req.RegistryRoot)); err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	second := agentvenv.EnvironmentSpec{AdapterID: req.SecondAdapterID}
+	_, err := agentvenv.CreateOrAttach(ctx, req.Name, second, agentvenv.WithRegistryRoot(req.RegistryRoot))
+	if err != nil {
+		return errorResp(req.CaseID, kindOf(err), err.Error(), true)
+	}
+	return errorResp(req.CaseID, "InternalInvariantViolation", "expected AdapterMismatch", true)
 }
 
 func opEphemeralLifecycle(ctx context.Context, req request) response {
