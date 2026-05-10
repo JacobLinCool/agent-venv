@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import stat
 from pathlib import Path
 
 from agent_venv import ClaudeCode, Codex, Environment
@@ -16,7 +14,9 @@ def test_claude_code_spec_no_creds():
 
 
 def test_claude_code_argv():
-    adapter = ClaudeCode(model="claude-haiku-4-5-20251001", reasoning_effort="high", load_credentials=False)
+    adapter = ClaudeCode(
+        model="claude-haiku-4-5-20251001", reasoning_effort="high", load_credentials=False
+    )
     argv = adapter.build_argv("hi")
     assert argv[0] == "claude"
     assert "--print" in argv

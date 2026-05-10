@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import time
 from typing import Any, Literal, Protocol
-
 
 EventKind = Literal[
     "env.created",
@@ -45,10 +45,8 @@ class EventLog:
         event = Event(ts_ms=ts_ms, kind=kind, data=data)
         self._events.append(event)
         if self._on_event is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._on_event(event)
-            except Exception:
-                pass
         return event
 
     def all(self) -> list[Event]:

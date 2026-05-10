@@ -116,7 +116,7 @@ def test_persistent_destroy_handle_removes_index_entry(tmp_path: Path):
 def test_event_log_full_sequence_ephemeral():
     seen: list[str] = []
     spec = EnvironmentSpec(seed_files={"a.txt": "1"}, credentials={"c": "x"})
-    with Environment.ephemeral(spec, on_event=lambda e: seen.append(e.kind)) as env:
+    with Environment.ephemeral(spec, on_event=lambda e: seen.append(e.kind)):
         pass
     assert "env.created" in seen
     assert "profile.materialized" in seen

@@ -5,6 +5,7 @@ See spec/registry.md.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import datetime as _dt
 import hashlib
@@ -16,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 from . import errors as _errors
-
 
 REGISTRY_SCHEMA_VERSION = 1
 
@@ -91,7 +91,7 @@ class Registry:
         try:
             import fcntl
 
-            f = open(self._lock_path, "w")
+            f = open(self._lock_path, "w")  # noqa: SIM115 — lock fp lives past return
             for _ in range(50):
                 try:
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -102,7 +102,7 @@ class Registry:
                 "could not acquire registry lock", path=str(self._lock_path)
             )
         except ImportError:
-            return open(self._lock_path, "w")
+            return open(self._lock_path, "w")  # noqa: SIM115 — lock fp lives past return
 
     def _release_lock(self, fp: Any) -> None:
         try:
@@ -111,10 +111,8 @@ class Registry:
             fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
         except (ImportError, OSError):
             pass
-        try:
+        with contextlib.suppress(OSError):
             fp.close()
-        except OSError:
-            pass
 
     # ------------------------------------------------------------------
     # Index
@@ -166,9 +164,7 @@ class Registry:
             ) from exc
         return env_dir, meta
 
-    def reserve_or_get(
-        self, name: str, adapter_id: str
-    ) -> tuple[Path, Metadata, bool]:
+    def reserve_or_get(self, name: str, adapter_id: str) -> tuple[Path, Metadata, bool]:
         """Returns ``(env_dir, metadata, created)``.
 
         If the name is new, allocates a fresh env_dir, writes a stub metadata,
@@ -182,7 +178,9 @@ class Registry:
             entries = self._read_index()
             if name in entries:
                 rel = entries[name]
-                env_dir = (self.root / rel).resolve() if (self.root / rel).exists() else self.root / rel
+                env_dir = (
+                    (self.root / rel).resolve() if (self.root / rel).exists() else self.root / rel
+                )
                 meta_path = env_dir / "metadata.json"
                 meta = Metadata.from_dict(json.loads(meta_path.read_text(encoding="utf-8")))
                 if meta.adapter_id != adapter_id:

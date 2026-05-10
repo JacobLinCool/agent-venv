@@ -166,7 +166,10 @@ def _op_attach_missing(case_id: str, req: dict[str, Any]) -> dict[str, Any]:
             "case_id": case_id,
             "ok": True,
             "events": _events(env),
-            "error": {"kind": "InternalInvariantViolation", "message": "attach unexpectedly succeeded"},
+            "error": {
+                "kind": "InternalInvariantViolation",
+                "message": "attach unexpectedly succeeded",
+            },
         }
     except _errors.AgentVenvError as exc:
         return _error_response(case_id, exc.kind, exc.message)

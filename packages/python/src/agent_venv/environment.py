@@ -12,7 +12,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from . import _profile, errors as _errors
+from . import _profile
+from . import errors as _errors
 from .adapters.base import AgentAdapter
 from .events import Event, EventLog, EventSink
 from .registry import Registry, default_registry_root
@@ -78,9 +79,7 @@ class _BaseEnvironment:
             try:
                 cleanup_ok, env_dir, cleanup_err = self._registry.remove(self._name)
                 ok = cleanup_ok
-                self._log.emit(
-                    "registry.written", path=str(self._registry._index_path)
-                )
+                self._log.emit("registry.written", path=str(self._registry._index_path))
                 self._log.emit(
                     "env.destroyed",
                     path=str(env_dir or self._path),
@@ -206,8 +205,10 @@ class Environment(_BaseEnvironment):
                 path=str(profile_dir),
             )
             log.emit("registry.read", path=str(env_dir / "metadata.json"))
-            env_overrides = dict(meta.env_overrides) if meta.env_overrides else _profile.materialize(
-                profile_dir, spec, log, skip_seed_if_exists=True
+            env_overrides = (
+                dict(meta.env_overrides)
+                if meta.env_overrides
+                else _profile.materialize(profile_dir, spec, log, skip_seed_if_exists=True)
             )
         return cls(
             path=profile_dir,
@@ -268,9 +269,7 @@ class Environment(_BaseEnvironment):
         return Registry(registry_root or default_registry_root()).list_names()
 
     @classmethod
-    def destroy_by_name(
-        cls, name: str, *, registry_root: Path | None = None
-    ) -> bool:
+    def destroy_by_name(cls, name: str, *, registry_root: Path | None = None) -> bool:
         registry = Registry(registry_root or default_registry_root())
         ok, _, err = registry.remove(name)
         if not ok and err:
@@ -391,9 +390,7 @@ class AsyncEnvironment(_BaseEnvironment):
 # ---------------------------------------------------------------------------
 
 
-def _resolve_spec(
-    spec: EnvironmentSpec | None, adapter: AgentAdapter | None
-) -> EnvironmentSpec:
+def _resolve_spec(spec: EnvironmentSpec | None, adapter: AgentAdapter | None) -> EnvironmentSpec:
     if spec is not None and adapter is not None:
         raise _errors.InvalidEnvironmentSpecError(
             "pass either spec= or adapter=, not both", field="spec/adapter"
