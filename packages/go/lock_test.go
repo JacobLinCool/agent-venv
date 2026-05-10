@@ -5,17 +5,21 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
+// flock provides OS-level mutual exclusion that Go's race detector does not
+// model. We use atomic.Int64 for the counter so the test is race-clean while
+// still asserting that all goroutines completed inside the critical section.
 func TestRegistryLockSerialisesGoroutines(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("flock is unix-only in v0")
 	}
 	dir := t.TempDir()
 	lockPath := filepath.Join(dir, ".lock")
-	var counter int
+	var counter atomic.Int64
 	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
@@ -32,12 +36,12 @@ func TestRegistryLockSerialisesGoroutines(t *testing.T) {
 				return
 			}
 			time.Sleep(20 * time.Millisecond)
-			counter++
+			counter.Add(1)
 			_ = releaseLock(f)
 		}()
 	}
 	wg.Wait()
-	if counter != 5 {
-		t.Fatalf("counter=%d (lock not exclusive)", counter)
+	if counter.Load() != 5 {
+		t.Fatalf("counter=%d (lock not exclusive)", counter.Load())
 	}
 }
