@@ -8,7 +8,10 @@ async fn ephemeral_create_destroy() {
     let mut env = Environment::ephemeral(spec).await.unwrap();
     let p = env.path().to_path_buf();
     assert!(p.exists());
-    assert_eq!(env.env_overrides().get("FOO"), Some(&p.to_string_lossy().to_string()));
+    assert_eq!(
+        env.env_overrides().get("FOO"),
+        Some(&p.to_string_lossy().to_string())
+    );
     env.destroy().await.unwrap();
     assert!(!p.exists());
 }
@@ -97,10 +100,14 @@ async fn list_and_destroy_by_name() {
 #[tokio::test]
 async fn attach_mismatch() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut a = EnvironmentSpec::default();
-    a.adapter_id = "claude-code".into();
-    let mut b = EnvironmentSpec::default();
-    b.adapter_id = "codex".into();
+    let a = EnvironmentSpec {
+        adapter_id: "claude-code".into(),
+        ..EnvironmentSpec::default()
+    };
+    let b = EnvironmentSpec {
+        adapter_id: "codex".into(),
+        ..EnvironmentSpec::default()
+    };
     Environment::create_or_attach("multi", a, Some(tmp.path()))
         .await
         .unwrap();

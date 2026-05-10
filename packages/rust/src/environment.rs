@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::events::{Event, EventKind, EventLog, EventSink};
 use crate::profile::{materialize, remove_dir};
-use crate::registry::{default_registry_root, Metadata, Registry};
+use crate::registry::{default_registry_root, Registry};
 use crate::spec::EnvironmentSpec;
 use chrono::Utc;
 use serde_json::{Map, Value};
@@ -86,7 +86,10 @@ impl Environment {
         created.insert("name".into(), Value::Null);
         created.insert("lifetime".into(), Value::from("ephemeral"));
         created.insert("adapter_id".into(), Value::from(spec.adapter_id.clone()));
-        created.insert("path".into(), Value::from(path.to_string_lossy().to_string()));
+        created.insert(
+            "path".into(),
+            Value::from(path.to_string_lossy().to_string()),
+        );
         log.emit(EventKind::EnvCreated, created);
 
         match materialize(&path, &spec, &log, false).await {
@@ -271,18 +274,20 @@ impl Environment {
         if self.destroyed {
             return Ok(true);
         }
-        let mut ok = true;
+        let ok;
         if self.kind == EnvKind::Persistent {
-            let registry = self.registry.as_ref().ok_or_else(|| {
-                Error::InternalInvariantViolation {
-                    message: "persistent env missing registry".into(),
-                }
-            })?;
-            let name = self.name.as_ref().ok_or_else(|| {
-                Error::InternalInvariantViolation {
+            let registry =
+                self.registry
+                    .as_ref()
+                    .ok_or_else(|| Error::InternalInvariantViolation {
+                        message: "persistent env missing registry".into(),
+                    })?;
+            let name = self
+                .name
+                .as_ref()
+                .ok_or_else(|| Error::InternalInvariantViolation {
                     message: "persistent env missing name".into(),
-                }
-            })?;
+                })?;
             match registry.remove(name) {
                 Ok((cleanup_ok, env_dir, err)) => {
                     ok = cleanup_ok;
@@ -302,10 +307,7 @@ impl Environment {
                     if !ok {
                         let mut em = Map::new();
                         em.insert("error_kind".into(), Value::from("CleanupFailed"));
-                        em.insert(
-                            "message".into(),
-                            Value::from(err.unwrap_or_default()),
-                        );
+                        em.insert("message".into(), Value::from(err.unwrap_or_default()));
                         self.log.emit(EventKind::Error, em);
                     }
                 }

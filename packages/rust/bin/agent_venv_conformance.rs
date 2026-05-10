@@ -69,7 +69,11 @@ fn walk_files(base: &Path) -> Vec<String> {
 
 fn inspect(env: &Environment) -> Map<String, Value> {
     let exists = env.path().exists();
-    let files = if exists { walk_files(env.path()) } else { Vec::new() };
+    let files = if exists {
+        walk_files(env.path())
+    } else {
+        Vec::new()
+    };
     let mut file_modes_json = Map::new();
     #[cfg(unix)]
     if exists {
@@ -86,7 +90,10 @@ fn inspect(env: &Environment) -> Map<String, Value> {
         env_overrides.insert(k.clone(), Value::from(v.clone()));
     }
     let mut m = Map::new();
-    m.insert("path".into(), Value::from(env.path().to_string_lossy().to_string()));
+    m.insert(
+        "path".into(),
+        Value::from(env.path().to_string_lossy().to_string()),
+    );
     m.insert("exists".into(), Value::from(exists));
     m.insert("env_overrides".into(), Value::Object(env_overrides));
     m.insert(
@@ -120,8 +127,16 @@ fn registry_root_from(req: &Value) -> Option<PathBuf> {
 }
 
 async fn handle(req: Value) -> Value {
-    let case_id = req.get("case_id").and_then(Value::as_str).unwrap_or("").to_string();
-    let op = req.get("op").and_then(Value::as_str).unwrap_or("").to_string();
+    let case_id = req
+        .get("case_id")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let op = req
+        .get("op")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     match op.as_str() {
         "ephemeral_lifecycle" => op_ephemeral(case_id, req).await,
         "persistent_create_attach_idempotent" => op_create_attach(case_id, req).await,
@@ -171,11 +186,16 @@ async fn op_ephemeral(case_id: String, req: Value) -> Value {
 }
 
 async fn op_create_attach(case_id: String, req: Value) -> Value {
-    let name = req.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+    let name = req
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let registry_root = registry_root_from(&req);
     let spec = spec_from_wire(req.get("spec").unwrap_or(&Value::Null));
     let res = async {
-        let env1 = Environment::create_or_attach(&name, spec.clone(), registry_root.as_deref()).await?;
+        let env1 =
+            Environment::create_or_attach(&name, spec.clone(), registry_root.as_deref()).await?;
         let env2 = Environment::create_or_attach(&name, spec, registry_root.as_deref()).await?;
         Ok::<_, Error>((env1, env2))
     }
@@ -198,7 +218,11 @@ async fn op_create_attach(case_id: String, req: Value) -> Value {
 }
 
 async fn op_attach_only(case_id: String, req: Value) -> Value {
-    let name = req.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+    let name = req
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let registry_root = registry_root_from(&req);
     match Environment::attach(&name, registry_root.as_deref()).await {
         Ok(env) => {
@@ -216,7 +240,11 @@ async fn op_attach_only(case_id: String, req: Value) -> Value {
 }
 
 async fn op_attach_missing(case_id: String, req: Value) -> Value {
-    let name = req.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+    let name = req
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let registry_root = registry_root_from(&req);
     match Environment::attach(&name, registry_root.as_deref()).await {
         Ok(_) => error_response(
@@ -253,7 +281,11 @@ async fn op_list(case_id: String, req: Value) -> Value {
 }
 
 async fn op_destroy_by_name(case_id: String, req: Value) -> Value {
-    let name = req.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+    let name = req
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let registry_root = registry_root_from(&req);
     let spec = spec_from_wire(req.get("spec").unwrap_or(&Value::Null));
     let mut env = match Environment::create_or_attach(&name, spec, registry_root.as_deref()).await {
@@ -274,7 +306,11 @@ async fn op_destroy_by_name(case_id: String, req: Value) -> Value {
 }
 
 async fn op_attach_mismatch(case_id: String, req: Value) -> Value {
-    let name = req.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+    let name = req
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let registry_root = registry_root_from(&req);
     let first_spec = spec_from_wire(req.get("first_spec").unwrap_or(&Value::Null));
     let second_id = req
@@ -282,11 +318,14 @@ async fn op_attach_mismatch(case_id: String, req: Value) -> Value {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    if let Err(e) = Environment::create_or_attach(&name, first_spec, registry_root.as_deref()).await {
+    if let Err(e) = Environment::create_or_attach(&name, first_spec, registry_root.as_deref()).await
+    {
         return error_response(&case_id, e.kind(), &e.to_string());
     }
-    let mut second = EnvironmentSpec::default();
-    second.adapter_id = second_id;
+    let second = EnvironmentSpec {
+        adapter_id: second_id,
+        ..EnvironmentSpec::default()
+    };
     match Environment::create_or_attach(&name, second, registry_root.as_deref()).await {
         Ok(_) => error_response(
             &case_id,
