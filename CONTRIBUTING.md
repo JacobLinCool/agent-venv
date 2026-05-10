@@ -43,13 +43,18 @@ pnpm test
 cd packages/rust
 cargo test
 
-# Conformance (all three)
+# Go
+cd packages/go
+go test -race ./...
+
+# Conformance (all four)
 cd conformance/runner
 uv pip install -e .
 python -m agent_venv_conformance \
   --adapter python:python -m agent_venv.conformance \
   --adapter ts:node ../../packages/typescript/dist/conformance/bin.js \
   --adapter rust:../../packages/rust/target/debug/agent-venv-conformance \
+  --adapter go:../../packages/go/agent-venv-conformance \
   --cases ../cases
 ```
 
@@ -60,6 +65,7 @@ Each implementation uses its language's standard formatter and linter. CI enforc
 - Python: `ruff format` + `ruff check` + `mypy`
 - TypeScript: `prettier` + `eslint` + `tsc --noEmit`
 - Rust: `cargo fmt` + `clippy -D warnings`
+- Go: `gofmt` + `go vet` (`golangci-lint` recommended but not enforced)
 
 ## Commit messages
 

@@ -4,11 +4,12 @@
 
 The library **does not run the agent**. It manages the environment. The caller spawns `claude` / `codex` themselves with the env vars `agent-venv` returns.
 
-Three idiomatic implementations from one shared spec:
+Four idiomatic implementations from one shared spec:
 
 - **Python** — `pip install agent-venv` (`packages/python/`)
 - **TypeScript** — `npm install agent-venv` (`packages/typescript/`)
 - **Rust** — `cargo add agent-venv` (`packages/rust/`)
+- **Go** — `go get github.com/JacobLinCool/agent-venv/packages/go` (`packages/go/`)
 
 Each is a first-class library. There is no native core; no binding layer. The [`spec/`](spec/) is authoritative.
 
@@ -107,6 +108,39 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### Go
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "os"
+    "os/exec"
+
+    agentvenv "github.com/JacobLinCool/agent-venv/packages/go"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // Claude Code
+    env, err := agentvenv.NewEphemeralFor(ctx, agentvenv.ClaudeCode{})
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer env.Destroy(ctx)
+
+    cmd := exec.Command("claude", "--print", "hi")
+    cmd.Env = os.Environ()
+    for k, v := range env.EnvOverrides() {
+        cmd.Env = append(cmd.Env, k+"="+v)
+    }
+    _ = cmd.Run()
+}
+```
+
 The library only sets the **agent-specific** env var (`CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex); it does not touch `HOME`, so other tools that share your shell environment are unaffected.
 
 ## Status
@@ -122,6 +156,7 @@ conformance/           # the cross-language test harness + JSON cases
 packages/python/       # Python implementation
 packages/typescript/   # TypeScript implementation
 packages/rust/         # Rust implementation
+packages/go/           # Go implementation
 agents/                # maintainer role briefs (humans + AI)
 benchmarks/            # cross-language perf comparisons (v0 stub)
 security/              # red-team findings (v0 stub)

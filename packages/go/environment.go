@@ -332,4 +332,3 @@ func kindOf(err error) string {
 	}
 	return "InternalInvariantViolation"
 }
-

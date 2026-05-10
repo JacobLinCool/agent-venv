@@ -3,7 +3,7 @@
 All notable changes to `agent-venv` are documented here, sectioned by package.
 Versions follow SemVer; see [`spec/compatibility.md`](spec/compatibility.md) for the policy.
 
-The three packages MAY sit at different patch levels but SHOULD share the same
+The four packages MAY sit at different patch levels but SHOULD share the same
 minor when the spec changes minor.
 
 ## [Unreleased]
@@ -16,6 +16,12 @@ minor when the spec changes minor.
 
 ### Rust
 -
+
+### Go
+- Initial Go implementation under `packages/go/`. Implements spec v0.1
+  (Layer 1 generic environment + Layer 2 ClaudeCode/Codex adapters).
+  Passes the cross-language conformance harness on `ubuntu-latest` and
+  `macos-latest`. MSRV Go 1.25.
 
 ## [0.1.0] — 2026-05-10
 
