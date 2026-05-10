@@ -12,6 +12,13 @@ Three idiomatic implementations from one shared spec:
 
 Each is a first-class library. There is no native core; no binding layer. The [`spec/`](spec/) is authoritative.
 
+## Why use it
+
+Both motivations come down to one thing: **avoid the user's settings polluting the agent invocation.**
+
+- **Skill / Agent as a Service** — your application embeds `claude` or `codex` as a backend worker, invoking specific skills to handle low-level processing. You want to leverage the user's existing subscription, but their personal skills, memory, MCP servers, and history must not leak into your app's runs (and vice versa). Each invocation gets a clean, app-controlled profile.
+- **Agent research / experiments** — when measuring agent behavior, the user's installed skills, hooks, and accumulated memory contaminate results. `agent-venv` gives every experiment run an isolated profile so the only thing that varies is what you intend to vary.
+
 ## Two flavors
 
 **Ephemeral** — created in a `with` / `await using` block, destroyed when the block exits. For short-lived, one-shot invocations.
@@ -30,14 +37,21 @@ Each is a first-class library. There is no native core; no binding layer. The [`
 
 ```python
 import os, subprocess
-from agent_venv import Environment, ClaudeCode
+from agent_venv import Environment, ClaudeCode, Codex
 
-# Ephemeral
+# Ephemeral — Claude Code
 with Environment.ephemeral(adapter=ClaudeCode()) as env:
     subprocess.run(
         ["claude", "--print", "hi"],
         env={**os.environ, **env.env_overrides},
         cwd="/wherever/you/want",
+    )
+
+# Ephemeral — Codex
+with Environment.ephemeral(adapter=Codex()) as env:
+    subprocess.run(
+        ["codex", "exec", "hi"],
+        env={**os.environ, **env.env_overrides},
     )
 
 # Persistent, named, reattachable
@@ -51,11 +65,18 @@ env = Environment.attach("myapp-skill-x")
 
 ```ts
 import { spawn } from "node:child_process";
-import { Environment, ClaudeCode } from "agent-venv";
+import { Environment, ClaudeCode, Codex } from "agent-venv";
 
-await using env = await Environment.ephemeral({ adapter: ClaudeCode() });
+// Claude Code
+await using cc = await Environment.ephemeral({ adapter: ClaudeCode() });
 spawn("claude", ["--print", "hi"], {
-  env: { ...process.env, ...env.envOverrides },
+  env: { ...process.env, ...cc.envOverrides },
+});
+
+// Codex
+await using cx = await Environment.ephemeral({ adapter: Codex() });
+spawn("codex", ["exec", "hi"], {
+  env: { ...process.env, ...cx.envOverrides },
 });
 
 const persistent = await Environment.createOrAttach("myapp-skill-x", {
@@ -66,20 +87,27 @@ const persistent = await Environment.createOrAttach("myapp-skill-x", {
 ### Rust
 
 ```rust
-use agent_venv::{Environment, adapters::{AgentAdapter, ClaudeCode}};
+use agent_venv::{Environment, adapters::{AgentAdapter, ClaudeCode, Codex}};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Claude Code
     let spec = ClaudeCode::new().build_spec()?;
     let mut env = Environment::ephemeral(spec).await?;
     println!("CLAUDE_CONFIG_DIR={}", env.env_overrides()["CLAUDE_CONFIG_DIR"]);
-    // ... caller spawns `claude` with env.env_overrides() merged into env ...
+    env.destroy().await?;
+
+    // Codex
+    let spec = Codex::new().build_spec()?;
+    let mut env = Environment::ephemeral(spec).await?;
+    println!("CODEX_HOME={}", env.env_overrides()["CODEX_HOME"]);
+    // ... caller spawns `claude` / `codex` with env.env_overrides() merged into env ...
     env.destroy().await?;
     Ok(())
 }
 ```
 
-The library only sets the **agent-specific** env var (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`); it does not touch `HOME` so other tools that share your shell environment are unaffected.
+The library only sets the **agent-specific** env var (`CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex); it does not touch `HOME`, so other tools that share your shell environment are unaffected.
 
 ## Status
 
