@@ -2,15 +2,15 @@
 
 ## Mission
 
-Coordinate cuts across three packages so that `agent-venv@0.2.0` means roughly the same thing in PyPI, npm, and crates.io.
+Coordinate cuts across four packages so that `agent-venv@0.2.0` means roughly the same thing in PyPI, npm, crates.io, and on `pkg.go.dev`.
 
 ## Scope
 
 You own:
 
 - `CHANGELOG.md` (single file at repo root, sectioned by package)
-- Version bumps in `packages/python/pyproject.toml`, `packages/typescript/package.json`, `packages/rust/Cargo.toml`
-- `.github/workflows/conformance.yml`, per-language CI, and the three release workflows
+- Version bumps in `packages/python/pyproject.toml`, `packages/typescript/package.json`, `packages/rust/Cargo.toml`, and the `Version` const in `packages/go/agentvenv.go`
+- `.github/workflows/conformance.yml`, per-language CI, and the four release workflows
 - Release tags
 
 You do not write functional code.
@@ -23,7 +23,7 @@ Read `spec/compatibility.md`. The short version:
 - Minor bump = additive API or spec change.
 - Major bump = breaking.
 
-The three packages MAY be at different patch levels but SHOULD be at the same minor when the spec changes minor.
+The four packages MAY be at different patch levels but SHOULD be at the same minor when the spec changes minor.
 
 Pre-release versions follow SemVer: `0.2.0-rc.1`, `0.2.0-beta.1`, etc. Each registry treats them as non-default installs (PyPI excludes from `pip install`, npm publishes to `next` dist-tag, `cargo add` ignores by default).
 
@@ -37,17 +37,24 @@ Pre-release versions follow SemVer: `0.2.0-rc.1`, `0.2.0-beta.1`, etc. Each regi
 | TypeScript pre-release | `ts-v0.2.0-rc.1`       | `release-ts.yml`        |
 | Rust release           | `rust-v0.1.0`          | `release-rust.yml`      |
 | Rust pre-release       | `rust-v0.2.0-rc.1`     | `release-rust.yml`      |
+| Go release             | `packages/go/v0.1.0` ¹ | `release-go.yml`        |
+| Go pre-release         | `packages/go/v0.2.0-rc.1` ¹ | `release-go.yml`   |
 | Synchronized marker    | `v0.1.0`               | nothing (human-only)    |
 
-The umbrella `v0.1.0` tag is a marker that all three per-language tags landed on the same version. It does not trigger publish. Cut it manually after the three language workflows succeed.
+¹ Go's module system requires the tag to be `<module-subpath>/vX.Y.Z` for `go get` to resolve a version against a subdirectory module. Unlike the short prefixes used for the other languages, this is not a project convention but a hard Go toolchain requirement.
+
+The umbrella `v0.1.0` tag is a marker that all four per-language tags landed on the same version. It does not trigger publish. Cut it manually after the four language workflows succeed.
 
 ## Release workflows
 
-Three independent workflows in `.github/workflows/`:
+Four independent workflows in `.github/workflows/`:
 
 - `release-python.yml`
 - `release-ts.yml`
 - `release-rust.yml`
+- `release-go.yml`
+
+The Python / TS / Rust pipelines all end with a registry publish step. The Go pipeline is similar but has **no publish step**: pushing the tag to GitHub is sufficient — Go modules resolve directly. The Go workflow does build/test/conformance/release-notes only and optionally pings `proxy.golang.org` to trigger immediate `pkg.go.dev` indexing.
 
 Each runs on tag push matching its prefix. Pipeline (identical shape, language-specific tools):
 
@@ -129,23 +136,25 @@ PyPI supports pending publishers, so its first release can go through OIDC. npm 
    ```
    Then on `crates.io` → crate → Settings → Trusted Publishing → Add (workflow `release-rust.yml`, env `release`). `cargo yank --version 0.0.1` after the first real release if the placeholder is misleading.
 
-After this bootstrap, the three release workflows are fully OIDC and need no further long-lived secrets. Real releases start at `0.1.0`; `0.0.1` exists only to unlock trusted publisher configuration.
+4. **Go**: N/A. There is no central registry to pre-register against. `go get github.com/JacobLinCool/agent-venv/packages/go@v0.1.0` resolves straight from the GitHub tag once `release-go.yml` has run. The workflow optionally pings `proxy.golang.org` to trigger immediate indexing on `pkg.go.dev`.
+
+After this bootstrap, the four release workflows need no further long-lived secrets (Python/TS/Rust use OIDC; Go uses no registry at all). Real releases start at `0.1.0`; `0.0.1` exists only to unlock trusted publisher configuration on the registries that need it.
 
 ## Pre-release checklist
 
 1. Spec for this version is finalized; no open `breaking-change` issues.
-2. Conformance passes on `macos-latest` and `ubuntu-latest` for all three packages (PR gate).
+2. Conformance passes on `macos-latest` and `ubuntu-latest` for all four packages (PR gate).
 3. Each package's unit tests pass.
 4. CHANGELOG sections updated for each package being bumped.
-5. Versions in the three manifest files match the intended release.
-6. Tags pushed: `python-v<X.Y.Z>`, `ts-v<X.Y.Z>`, `rust-v<X.Y.Z>`. After all three release workflows succeed, optionally cut the umbrella `v<X.Y.Z>`.
+5. Versions in the four version sources match the intended release (`pyproject.toml`, `package.json`, `Cargo.toml`, `packages/go/agentvenv.go` `Version` const).
+6. Tags pushed: `python-v<X.Y.Z>`, `ts-v<X.Y.Z>`, `rust-v<X.Y.Z>`, `packages/go/v<X.Y.Z>`. After all four release workflows succeed, optionally cut the umbrella `v<X.Y.Z>`.
 
 ## Recovering from a failed release
 
 - **Tag/manifest version mismatch**: workflow fails at step 2; nothing is published. Delete the tag, fix the manifest, push a new tag.
 - **Conformance regression caught in release workflow**: workflow fails before publish. Fix in main, then bump the patch version (PyPI/npm/crates.io won't accept a republished version) and tag again.
-- **Conformance regression caught after publish**: yank from all three registries (PyPI yank, `npm deprecate` + `npm unpublish` within 72h, `cargo yank`). We don't ship one package and not the others.
+- **Conformance regression caught after publish**: yank from all three publish registries (PyPI yank, `npm deprecate` + `npm unpublish` within 72h, `cargo yank`). For Go there is no yank — instead, push `packages/go/v<X.Y.Z+1>` with the fix and recommend users upgrade in a CHANGELOG note. We don't ship one package and not the others.
 
 ## Yanking
 
-If a release ships with a conformance regression, yank from all three registries. We don't ship one package and not the others. Follow up with a CHANGELOG entry explaining what happened and which version supersedes the yanked one.
+If a release ships with a conformance regression, yank from PyPI/npm/crates.io and ship a Go patch release the same minor (Go has no central yank). We don't ship one package and not the others. Follow up with a CHANGELOG entry explaining what happened and which version supersedes the yanked one.

@@ -1,0 +1,90 @@
+name: release-go
+
+on:
+  push:
+    tags:
+      - "packages/go/v*"
+
+concurrency:
+  group: release-go-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Parse tag and verify Version constant
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#packages/go/v}"
+          PRERELEASE=false
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=true; fi
+          SRC_VER="$(grep -E '^[[:space:]]*Version[[:space:]]*=' packages/go/agentvenv.go | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')"
+          if [ "$VERSION" != "$SRC_VER" ]; then
+            echo "::error::Tag version $VERSION != Version const $SRC_VER"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Tag=$TAG Version=$VERSION Prerelease=$PRERELEASE"
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: gofmt check
+        working-directory: packages/go
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::unformatted files:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        working-directory: packages/go
+        run: go vet ./...
+
+      - name: Unit tests
+        working-directory: packages/go
+        run: go test -race ./...
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install conformance harness
+        run: uv pip install --system -e conformance/runner
+
+      - name: Build conformance binary
+        working-directory: packages/go
+        run: go build -o /tmp/agent-venv-conformance-go ./cmd/agent-venv-conformance
+
+      - name: Conformance (go adapter only)
+        run: |
+          python -m agent_venv_conformance \
+            --adapter "go:/tmp/agent-venv-conformance-go" \
+            --cases conformance/cases \
+            --no-differential
+
+      - name: Copy LICENSE into package
+        run: cp LICENSE packages/go/LICENSE
+
+      - name: Trigger pkg.go.dev refresh
+        run: |
+          curl -fsSL "https://proxy.golang.org/github.com/!jacob!lin!cool/agent-venv/packages/go/@v/v${{ steps.tag.outputs.version }}.info" || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: agent-venv (Go) ${{ steps.tag.outputs.version }}
+          prerelease: ${{ steps.tag.outputs.prerelease }}
+          generate_release_notes: true

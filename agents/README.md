@@ -12,6 +12,7 @@ The model is borrowed from the discussion in `/tmp.md`. The driving idea: don't 
 | [Python Maintainer](python-maintainer.md) | `packages/python/` | other implementations, spec |
 | [TypeScript Maintainer](ts-maintainer.md) | `packages/typescript/` | other implementations, spec |
 | [Rust Maintainer](rust-maintainer.md) | `packages/rust/` | other implementations, spec |
+| [Go Maintainer](go-maintainer.md) | `packages/go/` | other implementations, spec |
 | [Conformance](conformance.md) | `conformance/` | implementations |
 | [Red-team](red-team.md) | `security/`, attack cases | implementations directly (proposes via Conformance) |
 | [Release](release.md) | `CHANGELOG.md`, version bumps, CI | functional code |
@@ -20,17 +21,17 @@ The model is borrowed from the discussion in `/tmp.md`. The driving idea: don't 
 
 ```
 1. Spec Steward drafts an RFC under rfcs/00NN-name.md
-2. Three Maintainers + Conformance + Red-team comment on the RFC
+2. Four Maintainers + Conformance + Red-team comment on the RFC
 3. Spec Steward revises until consensus (or escalates to human)
 4. Conformance Agent writes failing test cases
-5. Three Maintainers each implement against the spec
+5. Four Maintainers each implement against the spec
 6. Red-team tries to break it (cases land in conformance/cases/)
-7. All three implementations pass conformance → Release Agent ships
+7. All four implementations pass conformance → Release Agent ships
 ```
 
 ## Anti-patterns
 
-- One agent both writing spec AND implementing in all three languages.
+- One agent both writing spec AND implementing in all four languages.
 - Skipping the conformance step because "it's just a small fix."
 - Letting one language's idiom leak into the spec ("the Python version says...").
 - Adding a feature to one implementation without an RFC.
