@@ -126,18 +126,32 @@ func main() {
     ctx := context.Background()
 
     // Claude Code
-    env, err := agentvenv.NewEphemeralFor(ctx, agentvenv.ClaudeCode{})
+    cc, err := agentvenv.NewEphemeralFor(ctx, agentvenv.ClaudeCode{})
     if err != nil {
         log.Fatal(err)
     }
-    defer env.Destroy(ctx)
+    defer cc.Destroy(ctx)
 
-    cmd := exec.Command("claude", "--print", "hi")
-    cmd.Env = os.Environ()
-    for k, v := range env.EnvOverrides() {
-        cmd.Env = append(cmd.Env, k+"="+v)
+    claude := exec.Command("claude", "--print", "hi")
+    claude.Env = os.Environ()
+    for k, v := range cc.EnvOverrides() {
+        claude.Env = append(claude.Env, k+"="+v)
     }
-    _ = cmd.Run()
+    _ = claude.Run()
+
+    // Codex
+    cx, err := agentvenv.NewEphemeralFor(ctx, agentvenv.Codex{})
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer cx.Destroy(ctx)
+
+    codex := exec.Command("codex", "exec", "hi")
+    codex.Env = os.Environ()
+    for k, v := range cx.EnvOverrides() {
+        codex.Env = append(codex.Env, k+"="+v)
+    }
+    _ = codex.Run()
 }
 ```
 
