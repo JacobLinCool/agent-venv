@@ -2,7 +2,10 @@ use agent_venv::adapters::{AgentAdapter, ClaudeCode, Codex};
 
 #[test]
 fn claude_spec_no_creds() {
-    let spec = ClaudeCode::new().load_credentials(false).build_spec().unwrap();
+    let spec = ClaudeCode::new()
+        .load_credentials(false)
+        .build_spec()
+        .unwrap();
     assert_eq!(spec.adapter_id, "claude-code");
     assert_eq!(
         spec.env_overrides.get("CLAUDE_CONFIG_DIR"),

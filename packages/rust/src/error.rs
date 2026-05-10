@@ -29,10 +29,7 @@ pub enum Error {
     CredentialsMissing { reason: String, adapter_id: String },
 
     #[error("AdapterUnavailable: '{cli_bin}' not found on PATH for adapter '{adapter_id}'")]
-    AdapterUnavailable {
-        adapter_id: String,
-        cli_bin: String,
-    },
+    AdapterUnavailable { adapter_id: String, cli_bin: String },
 
     #[error("CleanupFailed: {os_error}")]
     CleanupFailed { os_error: String, path: String },

@@ -20,7 +20,10 @@ pub fn default_registry_root() -> PathBuf {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/"));
-    home.join(".local").join("share").join("agent-venv").join("envs")
+    home.join(".local")
+        .join("share")
+        .join("agent-venv")
+        .join("envs")
 }
 
 pub fn slug_for(name: &str) -> String {
@@ -165,8 +168,8 @@ impl Registry {
             Some(r) => r.clone(),
             None => return Ok(None),
         };
-        let env_dir = std::fs::canonicalize(self.root.join(&rel))
-            .unwrap_or_else(|_| self.root.join(&rel));
+        let env_dir =
+            std::fs::canonicalize(self.root.join(&rel)).unwrap_or_else(|_| self.root.join(&rel));
         let meta_path = env_dir.join("metadata.json");
         match std::fs::read_to_string(&meta_path) {
             Ok(s) => {
@@ -193,18 +196,17 @@ impl Registry {
                 let env_dir = std::fs::canonicalize(self.root.join(rel))
                     .unwrap_or_else(|_| self.root.join(rel));
                 let meta_path = env_dir.join("metadata.json");
-                let meta: Metadata = serde_json::from_str(
-                    &std::fs::read_to_string(&meta_path).map_err(|e| {
+                let meta: Metadata =
+                    serde_json::from_str(&std::fs::read_to_string(&meta_path).map_err(|e| {
                         Error::RegistryUnavailable {
                             reason: e.to_string(),
                             path: meta_path.display().to_string(),
                         }
-                    })?,
-                )
-                .map_err(|e| Error::RegistryUnavailable {
-                    reason: format!("parse metadata: {e}"),
-                    path: meta_path.display().to_string(),
-                })?;
+                    })?)
+                    .map_err(|e| Error::RegistryUnavailable {
+                        reason: format!("parse metadata: {e}"),
+                        path: meta_path.display().to_string(),
+                    })?;
                 if meta.adapter_id != adapter_id {
                     return Err(Error::AdapterMismatch {
                         name: name.to_string(),
@@ -217,7 +219,13 @@ impl Registry {
             let mut slug = slug_for(name);
             let existing: std::collections::HashSet<String> = entries
                 .values()
-                .map(|p| Path::new(p).file_name().unwrap().to_string_lossy().to_string())
+                .map(|p| {
+                    Path::new(p)
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string()
+                })
                 .collect();
             let mut attempt = slug.clone();
             let mut i = 0;
@@ -234,8 +242,8 @@ impl Registry {
                     path: env_dir_initial.display().to_string(),
                 }
             })?;
-            let env_dir = std::fs::canonicalize(&env_dir_initial)
-                .unwrap_or_else(|_| env_dir_initial.clone());
+            let env_dir =
+                std::fs::canonicalize(&env_dir_initial).unwrap_or_else(|_| env_dir_initial.clone());
             let meta = Metadata {
                 schema_version: REGISTRY_SCHEMA_VERSION,
                 name: name.to_string(),
